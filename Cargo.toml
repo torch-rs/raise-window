@@ -1,0 +1,16 @@
+[package]
+name = "raise-window"
+version = "0.1.0"
+authors = ["Patrick Chan <patrickchan1999@gmail.com>"]
+
+[dependencies]
+encoding = "0.2.33"
+failure = "0.1.1"
+lazy_static = "1.0.0"
+nom = "3.2.1"
+regex = "0.2.7"
+xcb = "0.8.2"
+
+[profile.release]
+lto = true
+panic = "abort"
