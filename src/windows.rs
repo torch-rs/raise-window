@@ -1,3 +1,7 @@
+extern crate byteorder;
+
+use self::byteorder::{ByteOrder, LittleEndian};
+
 use xcb::{self, Connection, Screen, Window, Atom};
 use std::sync::Mutex;
 use std::collections::HashMap;
@@ -62,6 +66,38 @@ pub fn get_atom(conn: &Connection, atom: &'static str)
     }
 }
 
+pub fn get_all_windows_by_name(conn: &Connection, screen: &Screen) -> Result<Vec<String>, Error> {
+    let wins = WindowTreeIter::new(conn, screen.root())?;
+    let condition = "class ~ \".*\"";
+    let cond: Condition = condition.parse().map_err(|_| err_msg("Invalid condition"))?;
+    let net_wm_window_type_normal = get_atom(conn, "_NET_WM_WINDOW_TYPE_NORMAL")?;
+
+    let mut result = Vec::new();
+    for w in wins {
+        let w = w?;
+        if is_regular_window(conn, w)? && cond.matches(conn, w)? {
+            let cookie = xcb::get_property(conn,
+                                           false,
+                                           w,
+                                           get_atom(conn, "_NET_WM_WINDOW_TYPE")?,
+                                           xcb::GET_PROPERTY_TYPE_ANY,
+                                           0,
+                                           u32::max_value());
+            if let Ok(reply) = cookie.get_reply() {
+                let value: &[u8] = reply.value();
+                if LittleEndian::read_u32(value) != net_wm_window_type_normal {
+                    continue;
+                }
+            }
+
+            let window_name = get_string_property(conn, w, get_atom(conn, "_NET_WM_NAME")?)?
+                .map_or_else(|| get_string_property(conn, w, xcb::ATOM_WM_NAME), |v| Ok(Some(v)))?;
+            result.push(window_name.unwrap());
+        }
+    }
+    Ok(result)
+}
+
 pub fn set_active_window(conn: &Connection, screen: &Screen, win: Window) -> Result<(), Error> {
     let net_active_window = get_atom(conn, "_NET_ACTIVE_WINDOW")?;
     let data = xcb::ClientMessageData::from_data32([XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
@@ -87,10 +123,10 @@ pub fn get_string_property(conn: &Connection, window: Window, prop: Atom) -> Res
                                         xcb::GET_PROPERTY_TYPE_ANY,
                                         0,
                                         u32::max_value())
-                          .get_reply() {
-        Ok(r) => r,
-        Err(_) => return Ok(None),
-    };
+        .get_reply() {
+            Ok(r) => r,
+            Err(_) => return Ok(None),
+        };
     let atom_utf8_string = get_atom(conn, "UTF8_STRING")?;
     let reply_type = reply.type_();
     if reply_type == xcb::ATOM_STRING {

@@ -30,6 +30,12 @@ fn get_property(conn: &Connection, window: Window, atom: Atom) -> Option<Vec<u8>
     None
 }
 
+pub fn get_all_windows() -> Result<Vec<Window>, Error> {
+    let (conn, screen_num) = Connection::connect(None)?;
+    let screen = conn.get_setup().roots().nth(screen_num as usize).unwrap();
+    windows::get_all_windows_by_name(&conn, &screen)
+}
+
 pub fn raise_window(conn: &Connection, screen: &Screen, win: Window) -> Result<(), Error> {
     let net_wm_desktop = windows::get_atom(&conn, "_NET_WM_DESKTOP")?;
     if let Some(value) = get_property(&conn, win, net_wm_desktop) {
@@ -69,7 +75,18 @@ pub fn raise_window_by_class(name: String) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
 
+    use get_all_windows;
     use raise_window_by_class;
+
+    #[test]
+    fn get_all_windows_test() {
+        if let Ok(windows) = get_all_windows() {
+            for win in &windows {
+                println!("{}", win);
+            }
+            assert_eq!(windows.len(), 3);
+        }
+    }
 
     #[test]
     fn raise_window_by_class_test() {
