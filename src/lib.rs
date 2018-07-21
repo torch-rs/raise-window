@@ -30,7 +30,7 @@ fn get_property(conn: &Connection, window: Window, atom: Atom) -> Option<Vec<u8>
     None
 }
 
-pub fn get_all_windows() -> Result<Vec<Window>, Error> {
+pub fn get_all_windows_by_name() -> Result<Vec<String>, Error> {
     let (conn, screen_num) = Connection::connect(None)?;
     let screen = conn.get_setup().roots().nth(screen_num as usize).unwrap();
     windows::get_all_windows_by_name(&conn, &screen)
@@ -72,15 +72,29 @@ pub fn raise_window_by_class(name: String) -> Result<(), Error> {
     }
 }
 
+pub fn raise_window_by_name(name: String) -> Result<(), Error> {
+    let condition = &format!("name = \"{}\"", name);
+    let cond = condition.parse().map_err(|_| err_msg("Invalid condition"))?;
+
+    let (conn, screen_num) = Connection::connect(None)?;
+    let screen = conn.get_setup().roots().nth(screen_num as usize).unwrap();
+
+    match windows::find_matching_window(&conn, &screen, &cond)? {
+        Some(win) => raise_window(&conn, &screen, win),
+        None => Err(err_msg("No matching window found")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
-    use get_all_windows;
+    use get_all_windows_by_name;
     use raise_window_by_class;
+    use raise_window_by_name;
 
     #[test]
     fn get_all_windows_test() {
-        if let Ok(windows) = get_all_windows() {
+        if let Ok(windows) = get_all_windows_by_name() {
             for win in &windows {
                 println!("{}", win);
             }
@@ -91,6 +105,11 @@ mod tests {
     #[test]
     fn raise_window_by_class_test() {
         assert!(raise_window_by_class(String::from("Caprine")).is_ok());
+    }
+
+    #[test]
+    fn raise_window_by_name_test() {
+        assert!(raise_window_by_name(String::from("termite")).is_ok());
     }
 
 }
