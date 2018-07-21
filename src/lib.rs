@@ -12,7 +12,7 @@ mod parsing;
 mod windows;
 mod conditions;
 
-use xcb::{Atom, Connection, Window};
+use xcb::{Atom, Connection, Screen, Window};
 use failure::{Error, err_msg};
 
 fn get_property(conn: &Connection, window: Window, atom: Atom) -> Option<Vec<u8>> {
@@ -30,48 +30,50 @@ fn get_property(conn: &Connection, window: Window, atom: Atom) -> Option<Vec<u8>
     None
 }
 
-pub fn raise_app(app_name: String) -> Result<(), Error> {
-    let condition = &format!("class = \"{}\"", app_name);
+pub fn raise_window(conn: &Connection, screen: &Screen, win: Window) -> Result<(), Error> {
+    let net_wm_desktop = windows::get_atom(&conn, "_NET_WM_DESKTOP")?;
+    if let Some(value) = get_property(&conn, win, net_wm_desktop) {
+        let desktop_index = value[0] as u32;
+        let data = xcb::ClientMessageData::from_data32([desktop_index,
+                                                        xcb::CURRENT_TIME,
+                                                        0,
+                                                        0,
+                                                        0]);
+        let net_current_desktop = windows::get_atom(&conn, "_NET_CURRENT_DESKTOP")?;
+        let ev = xcb::ClientMessageEvent::new(32, screen.root(), net_current_desktop, data);
+        xcb::send_event(&conn,
+                        false,
+                        screen.root(),
+                        xcb::EVENT_MASK_SUBSTRUCTURE_NOTIFY | xcb::EVENT_MASK_SUBSTRUCTURE_REDIRECT,
+                        &ev).request_check()?;
+        windows::set_active_window(&conn, &screen, win)?;
+        conn.flush();
+    }
+
+    Ok(())
+}
+
+pub fn raise_window_by_class(name: String) -> Result<(), Error> {
+    let condition = &format!("class = \"{}\"", name);
     let cond = condition.parse().map_err(|_| err_msg("Invalid condition"))?;
 
     let (conn, screen_num) = Connection::connect(None)?;
     let screen = conn.get_setup().roots().nth(screen_num as usize).unwrap();
 
     match windows::find_matching_window(&conn, &screen, &cond)? {
-        Some(win) => {
-            let net_wm_desktop = windows::get_atom(&conn, "_NET_WM_DESKTOP")?;
-            if let Some(value) = get_property(&conn, win, net_wm_desktop) {
-                let desktop_index = value[0] as u32;
-                let data = xcb::ClientMessageData::from_data32([desktop_index,
-                                                                xcb::CURRENT_TIME,
-                                                                0,
-                                                                0,
-                                                                0]);
-                let net_current_desktop = windows::get_atom(&conn, "_NET_CURRENT_DESKTOP")?;
-                let ev = xcb::ClientMessageEvent::new(32, screen.root(), net_current_desktop, data);
-                xcb::send_event(&conn,
-                                false,
-                                screen.root(),
-                                xcb::EVENT_MASK_SUBSTRUCTURE_NOTIFY | xcb::EVENT_MASK_SUBSTRUCTURE_REDIRECT,
-                                &ev).request_check()?;
-                windows::set_active_window(&conn, &screen, win)?;
-                conn.flush();
-            }
-        },
-        None => return Err(err_msg("No matching window found")),
+        Some(win) => raise_window(&conn, &screen, win),
+        None => Err(err_msg("No matching window found")),
     }
-
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
 
-    use raise_app;
+    use raise_window_by_class;
 
     #[test]
-    fn raise_app_test() {
-        assert!(raise_app(String::from("Caprine")).is_ok());
+    fn raise_window_by_class_test() {
+        assert!(raise_window_by_class(String::from("Caprine")).is_ok());
     }
 
 }
