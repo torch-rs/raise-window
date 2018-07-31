@@ -59,7 +59,7 @@ pub fn raise_window(conn: &Connection, screen: &Screen, win: Window) -> Result<(
     Ok(())
 }
 
-pub fn raise_window_by_class(name: String) -> Result<(), Error> {
+pub fn raise_window_by_class(name: &str) -> Result<(), Error> {
     let condition = &format!("class = \"{}\"", name);
     let cond = condition.parse().map_err(|_| err_msg("Invalid condition"))?;
 
@@ -72,7 +72,7 @@ pub fn raise_window_by_class(name: String) -> Result<(), Error> {
     }
 }
 
-pub fn raise_window_by_name(name: String) -> Result<(), Error> {
+pub fn raise_window_by_name(name: &str) -> Result<(), Error> {
     let condition = &format!("name = \"{}\"", name);
     let cond = condition.parse().map_err(|_| err_msg("Invalid condition"))?;
 
@@ -104,12 +104,12 @@ mod tests {
 
     #[test]
     fn raise_window_by_class_test() {
-        assert!(raise_window_by_class(String::from("Caprine")).is_ok());
+        assert!(raise_window_by_class("Caprine").is_ok());
     }
 
     #[test]
     fn raise_window_by_name_test() {
-        assert!(raise_window_by_name(String::from("termite")).is_ok());
+        assert!(raise_window_by_name("termite").is_ok());
     }
 
 }
