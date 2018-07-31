@@ -1,19 +1,18 @@
-extern crate xcb;
-extern crate regex;
 extern crate encoding;
 extern crate failure;
-
 #[macro_use]
 extern crate nom;
 #[macro_use]
 extern crate lazy_static;
+extern crate regex;
+extern crate xcb;
 
 mod parsing;
 mod windows;
 mod conditions;
 
-use xcb::{Atom, Connection, Screen, Window};
 use failure::{Error, err_msg};
+use xcb::{Atom, Connection, Screen, Window};
 
 fn get_property(conn: &Connection, window: Window, atom: Atom) -> Option<Vec<u8>> {
     let cookie = xcb::get_property(conn,
